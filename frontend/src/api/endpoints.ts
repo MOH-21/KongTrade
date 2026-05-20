@@ -1,6 +1,6 @@
 import apiClient from "./client";
 import type {
-  BrokerConnectRequest, BrokerConnection, BrokerStatusResponse,
+  BrokerConnectRequest, BrokerConnectResponse, BrokerConnection, BrokerStatusResponse,
   Trade, TradeCreateRequest, TradeUpdateRequest, TradeListParams, PaginatedResponse,
   DashboardSummary, CalendarDay, ZellaScore, StreakData, DrawdownData,
   JournalEntry, JournalEntryRequest,
@@ -11,9 +11,9 @@ import type {
 
 // ---- Brokers ----
 export const brokersApi = {
-  connect: (data: BrokerConnectRequest) => apiClient.post<BrokerConnection>("/brokers/connect", data).then(r => r.data),
+  connect: (data: BrokerConnectRequest) => apiClient.post<BrokerConnectResponse>("/brokers/connect", data).then(r => r.data),
   status: () => apiClient.get<BrokerStatusResponse>("/brokers/status").then(r => r.data),
-  sync: () => apiClient.post<{ message: string; task_id: string }>("/brokers/sync").then(r => r.data),
+  sync: () => apiClient.post<{ message: string; new_trades: number }>("/brokers/sync").then(r => r.data),
   disconnect: (broker_name?: string) => apiClient.delete("/brokers/disconnect", { params: { broker_name } }).then(r => r.data),
 };
 

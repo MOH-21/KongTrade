@@ -4,19 +4,49 @@ from app.models.broker import BrokerConnection, Account
 from app.models.trade import Trade, AssetType, TradeSide, TradeStatus
 from app.schemas.broker import BrokerConnectionResponse, AccountResponse, BrokerStatusResponse
 from app.utils.encryption import encrypt_value, decrypt_value
-from app.utils.robinhood_client import RobinhoodClient
+from app.utils.robinhood_client import RobinhoodClient, MfaRequired
 
 
 class BrokerService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    # ---- Connection management ----
-
     async def connect_broker(
-        self, user_id: str, broker_name: str, username: str, password: str, mfa_secret: str | None = None
-    ) -> BrokerConnectionResponse:
-        # Check for existing connection
+        self, user_id: str, broker_name: str, username: str, password: str,
+        mfa_code: str | None = None, connection_id: str | None = None,
+    ) -> dict:
+        """Connect to Robinhood. Returns {"connected": True, "connection": ...}
+        or {"mfa_required": True, "connection_id": ...}"""
+        client = RobinhoodClient()
+
+        # If we have a connection_id, this is a retry with MFA code
+        if connection_id:
+            result = await self.db.execute(
+                select(BrokerConnection).where(BrokerConnection.id == connection_id)
+            )
+            conn = result.scalar_one_or_none()
+            if not conn:
+                raise ValueError("Connection not found")
+            try:
+                client.login(
+                    username=conn.username,
+                    password=decrypt_value(conn.encrypted_password),
+                    mfa_code=mfa_code,
+                )
+            except MfaRequired:
+                return {"mfa_required": True, "connection_id": connection_id}
+            except Exception as e:
+                raise ConnectionError(str(e))
+            pickle_data = client.get_session_pickle()
+            conn.pickle_data = pickle_data
+            conn.is_connected = True
+            await self.db.commit()
+            await self.db.refresh(conn)
+            acc = await self._sync_account(user_id, conn.id, client)
+            client.logout()
+            return {"connected": True, "connection": BrokerConnectionResponse.model_validate(conn)}
+
+        # Fresh connection — store credentials first, then try login
         result = await self.db.execute(
             select(BrokerConnection).where(
                 BrokerConnection.user_id == user_id,
@@ -25,65 +55,68 @@ class BrokerService:
         )
         existing = result.scalar_one_or_none()
 
-        # Test the credentials
-        client = RobinhoodClient()
-        try:
-            client.login(username, password, mfa_secret)
-            pickle_data = client.get_session_pickle()
-
-            account_info = client.get_account_info()
-            client.logout()
-        except Exception as e:
-            raise ValueError(f"Failed to connect to {broker_name}: {str(e)}")
-
         if existing:
             existing.username = username
             existing.encrypted_password = encrypt_value(password)
-            existing.encrypted_mfa_secret = encrypt_value(mfa_secret) if mfa_secret else None
-            existing.pickle_data = pickle_data
-            existing.is_connected = True
+            existing.is_connected = False
             await self.db.commit()
             await self.db.refresh(existing)
-            connection = existing
+            conn = existing
         else:
-            connection = BrokerConnection(
+            conn = BrokerConnection(
                 user_id=user_id,
                 broker_name=broker_name,
                 username=username,
                 encrypted_password=encrypt_value(password),
-                encrypted_mfa_secret=encrypt_value(mfa_secret) if mfa_secret else None,
-                pickle_data=pickle_data,
-                is_connected=True,
+                is_connected=False,
             )
-            self.db.add(connection)
+            self.db.add(conn)
             await self.db.commit()
-            await self.db.refresh(connection)
+            await self.db.refresh(conn)
 
-        # Create/update account record
-        if account_info:
-            acc_result = await self.db.execute(
-                select(Account).where(
-                    Account.user_id == user_id,
-                    Account.broker_connection_id == connection.id,
-                    Account.account_number == account_info.account_number,
-                )
+        try:
+            client.login(username, password)
+        except MfaRequired:
+            return {"mfa_required": True, "connection_id": str(conn.id)}
+        except Exception as e:
+            raise ConnectionError(str(e))
+
+        pickle_data = client.get_session_pickle()
+        conn.pickle_data = pickle_data
+        conn.is_connected = True
+        await self.db.commit()
+        await self.db.refresh(conn)
+
+        acc = await self._sync_account(user_id, conn.id, client)
+        client.logout()
+        return {"connected": True, "connection": BrokerConnectionResponse.model_validate(conn)}
+
+    async def _sync_account(self, user_id: str, connection_id: str, client: RobinhoodClient):
+        account_info = client.get_account_info()
+        if not account_info:
+            return None
+        result = await self.db.execute(
+            select(Account).where(
+                Account.user_id == user_id,
+                Account.broker_connection_id == connection_id,
+                Account.account_number == account_info.account_number,
             )
-            acc = acc_result.scalar_one_or_none()
-            if acc:
-                acc.current_balance = account_info.equity
-            else:
-                acc = Account(
-                    user_id=user_id,
-                    broker_connection_id=connection.id,
-                    account_number=account_info.account_number,
-                    account_type=account_info.account_type,
-                    initial_balance=account_info.equity,
-                    current_balance=account_info.equity,
-                )
-                self.db.add(acc)
-            await self.db.commit()
-
-        return BrokerConnectionResponse.model_validate(connection)
+        )
+        acc = result.scalar_one_or_none()
+        if acc:
+            acc.current_balance = account_info.equity
+        else:
+            acc = Account(
+                user_id=user_id,
+                broker_connection_id=connection_id,
+                account_number=account_info.account_number,
+                account_type=account_info.account_type,
+                initial_balance=account_info.equity,
+                current_balance=account_info.equity,
+            )
+            self.db.add(acc)
+        await self.db.commit()
+        return acc
 
     async def get_status(self, user_id: str) -> BrokerStatusResponse:
         result = await self.db.execute(
@@ -93,7 +126,6 @@ class BrokerService:
             )
         )
         connections = result.scalars().all()
-
         if not connections:
             return BrokerStatusResponse(connected=False, broker_name=None, last_synced_at=None, accounts=[])
 
@@ -102,7 +134,6 @@ class BrokerService:
             select(Account).where(Account.broker_connection_id == conn.id)
         )
         accounts = acc_result.scalars().all()
-
         return BrokerStatusResponse(
             connected=True,
             broker_name=conn.broker_name,
@@ -124,10 +155,7 @@ class BrokerService:
         await self.db.commit()
         return True
 
-    # ---- Trade sync ----
-
     async def sync_trades(self, user_id: str, connection_id: str) -> int:
-        """Pull trades from Robinhood and store in KongTrade. Returns count of new trades."""
         result = await self.db.execute(
             select(BrokerConnection).where(
                 BrokerConnection.id == connection_id,
@@ -143,7 +171,6 @@ class BrokerService:
             client.login(
                 username=conn.username,
                 password=decrypt_value(conn.encrypted_password),
-                mfa_secret=decrypt_value(conn.encrypted_mfa_secret) if conn.encrypted_mfa_secret else None,
                 pickle_data=conn.pickle_data,
             )
         except Exception as e:
@@ -151,15 +178,12 @@ class BrokerService:
 
         try:
             trades_data = client.get_all_trades()
-
-            # Update session pickle
             new_pickle = client.get_session_pickle()
             if new_pickle:
                 conn.pickle_data = new_pickle
 
             new_count = 0
             for td in trades_data:
-                # Check if we already have this trade
                 if td.broker_order_id:
                     existing = await self.db.execute(
                         select(Trade).where(
@@ -170,7 +194,6 @@ class BrokerService:
                     if existing.scalar_one_or_none():
                         continue
 
-                # Find or create account
                 acc_result = await self.db.execute(
                     select(Account).where(Account.broker_connection_id == connection_id)
                 )
@@ -197,11 +220,9 @@ class BrokerService:
                 self.db.add(trade)
                 new_count += 1
 
-            # Update last synced
             from datetime import datetime, timezone
             conn.last_synced_at = datetime.now(timezone.utc)
             await self.db.commit()
-
             client.logout()
             return new_count
         except Exception as e:

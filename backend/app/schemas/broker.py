@@ -6,7 +6,15 @@ class BrokerConnectRequest(BaseModel):
     broker_name: str
     username: str
     password: str
-    mfa_secret: str | None = None
+    mfa_code: str | None = None
+    connection_id: str | None = None
+
+
+class BrokerConnectResponse(BaseModel):
+    connected: bool
+    mfa_required: bool = False
+    connection_id: str | None = None
+    connection: "BrokerConnectionResponse | None" = None
 
 
 class BrokerConnectionResponse(BaseModel):

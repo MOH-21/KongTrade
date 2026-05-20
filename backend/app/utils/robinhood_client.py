@@ -2,17 +2,20 @@ import os
 import pickle
 import tempfile
 import robin_stocks.robinhood as r
-import pyotp
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+
+
+class MfaRequired(Exception):
+    """Raised when Robinhood requires an MFA code."""
 
 
 @dataclass
 class TradeData:
     symbol: str
-    asset_type: str  # stock, option, crypto
-    side: str  # buy, sell
+    asset_type: str
+    side: str
     quantity: float
     entry_price: float
     exit_price: float | None
@@ -50,8 +53,8 @@ class RobinhoodClient:
     def __init__(self):
         self._authenticated = False
 
-    def login(self, username: str, password: str, mfa_secret: str | None = None, pickle_data: str | None = None) -> bool:
-        """Authenticate with Robinhood. Uses stored pickle session if available."""
+    def login(self, username: str, password: str, mfa_code: str | None = None, pickle_data: str | None = None) -> bool:
+        """Authenticate with Robinhood. Raises MfaRequired if a code is needed."""
         try:
             if pickle_data:
                 with tempfile.NamedTemporaryFile(mode="w", suffix=".pickle", delete=False) as f:
@@ -63,17 +66,12 @@ class RobinhoodClient:
                     return True
                 except Exception:
                     os.unlink(pickle_path)
-                    # Fall through to fresh login
-
-            mfa_code = None
-            if mfa_secret:
-                mfa_code = pyotp.TOTP(mfa_secret).now()
 
             r.login(
                 username=username,
                 password=password,
                 expiresIn=86400,
-                by_sms=False,
+                by_sms=True,
                 mfa_code=mfa_code,
                 store_session=False,
             )
@@ -81,10 +79,12 @@ class RobinhoodClient:
             return True
         except Exception as e:
             self._authenticated = False
+            msg = str(e).lower()
+            if "mfa" in msg or "challenge" in msg or "verification" in msg or "two-factor" in msg or "2fa" in msg or "code" in msg:
+                raise MfaRequired("Robinhood requires an MFA code. Check your email or authenticator app.")
             raise ConnectionError(f"Robinhood login failed: {str(e)}")
 
     def get_session_pickle(self) -> str | None:
-        """Export current session to pickle string for storage."""
         if not self._authenticated:
             return None
         try:
@@ -113,28 +113,14 @@ class RobinhoodClient:
             account_info = r.profiles.load_phoenix_account(info=None)
             return AccountData(
                 account_number=profile.get("account_number", ""),
-                account_type=profile.get("margin_balances", {}) and "margin" or "cash",
-                buying_power=float(account_info.get("account_buying_power", "0").replace("$", "").replace(",", "")),
-                equity=float(account_info.get("total_equity", "0").replace("$", "").replace(",", "")),
-                cash=float(account_info.get("cash", "0").replace("$", "").replace(",", "")),
+                account_type="margin" if profile.get("margin_balances") else "cash",
+                buying_power=float(str(account_info.get("account_buying_power", "0")).replace("$", "").replace(",", "")),
+                equity=float(str(account_info.get("total_equity", "0")).replace("$", "").replace(",", "")),
+                cash=float(str(account_info.get("cash", "0")).replace("$", "").replace(",", "")),
             )
         except Exception as e:
             print(f"Error getting account info: {e}")
             return None
-
-    def get_portfolio_equity(self) -> float:
-        if not self._authenticated:
-            return 0.0
-        try:
-            profile = r.profiles.load_portfolio_profile(info="equity")
-            if isinstance(profile, dict):
-                eq = profile.get("equity", profile)
-                if isinstance(eq, str):
-                    return float(eq.replace("$", "").replace(",", ""))
-                return float(eq) if eq else 0.0
-            return 0.0
-        except Exception:
-            return 0.0
 
     def get_current_positions(self) -> list[HoldingData]:
         if not self._authenticated:
@@ -180,56 +166,26 @@ class RobinhoodClient:
         except Exception:
             return []
 
-    def get_stock_historicals(self, symbol: str, interval: str = "day", span: str = "1year") -> list[dict]:
-        if not self._authenticated:
-            return []
-        try:
-            return r.stocks.get_stock_historicals(symbol, interval=interval, span=span) or []
-        except Exception:
-            return []
-
-    def get_latest_price(self, symbol: str) -> float | None:
-        if not self._authenticated:
-            return None
-        try:
-            prices = r.stocks.get_latest_price(symbol)
-            if prices:
-                return float(prices[0])
-        except Exception:
-            pass
-        return None
-
     # ---- Order-to-Trade transformation ----
 
     @staticmethod
     def _parse_robinhood_order(order: dict, asset_type: str) -> TradeData | None:
-        """Convert a Robinhood order dict into a TradeData object."""
         try:
-            # Determine side and fill details
             side = order.get("side", "")
             symbol = (order.get("symbol") or order.get("chain_symbol", "")).upper()
-
-            # Get fill prices and quantities
             avg_price = float(order.get("average_price") or order.get("price") or 0)
             quantity = float(order.get("quantity") or 0)
             fees = float(order.get("fees") or 0)
-
-            # Entry details
             created_at = order.get("created_at", "")
             entry_time = datetime.fromisoformat(created_at.replace("Z", "+00:00")) if created_at else datetime.now()
-
-            # Check state
             state = order.get("state", "")
-            is_filled = state in ("filled", "cancelled")
 
-            if not is_filled or quantity <= 0 or avg_price <= 0:
+            if state not in ("filled", "cancelled") or quantity <= 0 or avg_price <= 0:
                 return None
 
-            # Determine exit for sell orders
             exit_price = None
             exit_time = None
             pnl = None
-
             if side == "sell":
                 exit_price = avg_price
                 exit_time = entry_time
@@ -254,20 +210,14 @@ class RobinhoodClient:
 
     @staticmethod
     def pair_buy_sell_orders(buy_orders: list[TradeData], sell_orders: list[TradeData]) -> list[TradeData]:
-        """Match buy and sell orders to compute P&L per trade.
-
-        Uses FIFO matching within the same symbol.
-        """
         buys_by_symbol: dict[str, list[TradeData]] = {}
         for buy in buy_orders:
             buys_by_symbol.setdefault(buy.symbol, []).append(buy)
 
         completed_trades: list[TradeData] = []
-
         for sell in sell_orders:
             symbol = sell.symbol
             if symbol not in buys_by_symbol or not buys_by_symbol[symbol]:
-                # Sell with no matching buy — treat as standalone
                 completed_trades.append(sell)
                 continue
 
@@ -277,8 +227,6 @@ class RobinhoodClient:
             while remaining_sell_qty > 0 and buys_by_symbol[symbol]:
                 buy = buys_by_symbol[symbol][0]
                 matched_qty = min(buy.quantity, remaining_sell_qty)
-
-                # Calculate P&L for this matched portion
                 pnl = (sell_avg_price - buy.entry_price) * matched_qty - sell.fees * (matched_qty / sell.quantity) - (buy.fees if buy.fees else 0) * (matched_qty / buy.quantity) if buy.quantity > 0 else 0
 
                 completed_trades.append(TradeData(
@@ -294,7 +242,6 @@ class RobinhoodClient:
                     pnl=pnl,
                     broker_order_id=f"{buy.broker_order_id}|{sell.broker_order_id}",
                 ))
-
                 remaining_sell_qty -= matched_qty
 
                 if buy.quantity <= matched_qty:
@@ -302,7 +249,6 @@ class RobinhoodClient:
                 else:
                     buy.quantity -= matched_qty
 
-        # Remaining unmatched buys are open positions
         for symbol_buys in buys_by_symbol.values():
             for buy in symbol_buys:
                 completed_trades.append(buy)
@@ -310,7 +256,6 @@ class RobinhoodClient:
         return completed_trades
 
     def get_all_trades(self) -> list[TradeData]:
-        """Pull all completed orders and pair into trades with P&L."""
         stock_orders = self.get_stock_orders()
         option_orders = self.get_option_orders()
         crypto_orders = self.get_crypto_orders()

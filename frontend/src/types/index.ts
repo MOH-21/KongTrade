@@ -53,7 +53,15 @@ export interface BrokerConnectRequest {
   broker_name: string;
   username: string;
   password: string;
-  mfa_secret?: string;
+  mfa_code?: string;
+  connection_id?: string;
+}
+
+export interface BrokerConnectResponse {
+  connected: boolean;
+  mfa_required: boolean;
+  connection_id: string | null;
+  connection: BrokerConnection | null;
 }
 
 export interface Account {

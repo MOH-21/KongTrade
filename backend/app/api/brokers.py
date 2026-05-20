@@ -1,37 +1,39 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.schemas.broker import BrokerConnectRequest, BrokerConnectionResponse, BrokerStatusResponse
-from app.api.deps import get_local_user
+from app.schemas.broker import BrokerConnectRequest, BrokerConnectResponse
+from app.api.deps import get_local_user, LocalUser
 from app.services.broker_service import BrokerService
 
 router = APIRouter(prefix="/api/brokers", tags=["brokers"])
 
 
-@router.post("/connect", response_model=BrokerConnectionResponse)
+@router.post("/connect", response_model=BrokerConnectResponse)
 async def connect_broker(
     request: BrokerConnectRequest,
-    user = Depends(get_local_user),
+    user: LocalUser = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = BrokerService(db)
     try:
-        return await service.connect_broker(
+        result = await service.connect_broker(
             user_id=user.id,
             broker_name=request.broker_name,
             username=request.username,
             password=request.password,
-            mfa_secret=request.mfa_secret,
+            mfa_code=request.mfa_code,
+            connection_id=request.connection_id,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return BrokerConnectResponse(**result)
     except ConnectionError as e:
         raise HTTPException(status_code=502, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/status", response_model=BrokerStatusResponse)
+@router.get("/status")
 async def broker_status(
-    user = Depends(get_local_user),
+    user: LocalUser = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = BrokerService(db)
@@ -40,7 +42,7 @@ async def broker_status(
 
 @router.post("/sync")
 async def sync_trades(
-    user = Depends(get_local_user),
+    user: LocalUser = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = BrokerService(db)
@@ -48,7 +50,6 @@ async def sync_trades(
     if not status.connected:
         raise HTTPException(status_code=400, detail="No connected broker")
 
-    # Get the connection
     from sqlalchemy import select
     from app.models.broker import BrokerConnection
     result = await db.execute(
@@ -68,7 +69,7 @@ async def sync_trades(
 @router.delete("/disconnect")
 async def disconnect_broker(
     broker_name: str = "robinhood",
-    user = Depends(get_local_user),
+    user: LocalUser = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = BrokerService(db)
