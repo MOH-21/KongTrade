@@ -2,19 +2,17 @@
 
 Trading journal and analytics platform. Clone of Tradezella with Robinhood integration.
 
-Track every trade, replay your sessions, score your performance, and find your edge — all in one place.
-
 ## Quick Start
 
 ```bash
 git clone https://github.com/MOH-21/KongTrade.git
 cd KongTrade
-./setup.sh
+./start.sh
 ```
 
-Open **http://localhost:3000**
+Open **http://localhost:5173**
 
-`setup.sh` installs Docker if needed, configures permissions, generates secrets, and launches everything. No Python, Node, or PostgreSQL required — one command, done.
+That's it. No Docker, no PostgreSQL — SQLite + browser.
 
 ## Features
 
@@ -28,7 +26,7 @@ Open **http://localhost:3000**
 
 **Playbooks** — Define entry/exit criteria and risk rules. Track strategy performance and rule-following scores.
 
-**Robinhood Integration** — Connect via robin_stocks with TOTP MFA support. Credentials encrypted at rest. Background sync via Celery.
+**Robinhood Integration** — Connect via robin_stocks with TOTP MFA support. Credentials encrypted at rest.
 
 ## Stack
 
@@ -36,33 +34,29 @@ Open **http://localhost:3000**
 |---|---|
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2.0 (async) |
 | Frontend | React 18, TypeScript, Vite, Tailwind CSS |
-| Database | PostgreSQL 16 |
-| Queue | Celery + Redis |
+| Database | SQLite (aiosqlite) |
+| Charts | Recharts |
 | Broker API | robin_stocks 3.4.0 |
-| Deployment | Docker Compose |
 
 ## Architecture
 
 ```
-docker compose up -d starts:
-  db:5432          — PostgreSQL
-  redis:6379       — Redis
-  backend:8000     — FastAPI (hot reload in dev)
-  celery_worker    — Background broker sync
-  frontend:3000    — React via nginx (proxies /api → backend)
+start.sh launches:
+  backend :8000   — FastAPI (hot reload)
+  frontend :5173  — Vite dev server (proxies /api → :8000)
 ```
 
 ## Development
 
 ```bash
-# Backend (with hot reload, needs local PG/Redis or Docker)
+# Backend
 cd backend
 cp .env.example .env
-python -m venv venv && source venv/bin/activate
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 
-# Frontend (with hot reload + API proxy to :8000)
+# Frontend (separate terminal)
 cd frontend
 npm install
 npm run dev

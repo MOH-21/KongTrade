@@ -5,7 +5,6 @@ from app.schemas.auth import UserResponse
 from app.schemas.broker import BrokerConnectRequest, BrokerConnectionResponse, BrokerStatusResponse
 from app.api.deps import require_user
 from app.services.broker_service import BrokerService
-from app.workers.broker_sync import sync_robinhood_trades
 
 router = APIRouter(prefix="/api/brokers", tags=["brokers"])
 
@@ -63,9 +62,8 @@ async def sync_trades(
     if not conn:
         raise HTTPException(status_code=400, detail="No connected broker")
 
-    # Run sync in background via Celery
-    task = sync_robinhood_trades.delay(user_id=str(user.id), connection_id=str(conn.id))
-    return {"message": "Sync started", "task_id": task.id, "status": "processing"}
+    count = await service.sync_trades(user_id=str(user.id), connection_id=str(conn.id))
+    return {"message": f"Synced {count} trades", "new_trades": count}
 
 
 @router.delete("/disconnect")

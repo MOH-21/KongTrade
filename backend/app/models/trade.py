@@ -1,7 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Float, Integer, DateTime, ForeignKey, Text, Enum as SAEnum, func
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import String, Float, DateTime, ForeignKey, Text, Enum as SAEnum, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 import enum
@@ -37,10 +36,10 @@ class TradeRating(str, enum.Enum):
 class Trade(Base):
     __tablename__ = "trades"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    account_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True)
-    broker_connection_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("broker_connections.id", ondelete="SET NULL"), nullable=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True)
+    broker_connection_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("broker_connections.id", ondelete="SET NULL"), nullable=True)
     broker_order_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     symbol: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
@@ -50,8 +49,8 @@ class Trade(Base):
 
     entry_price: Mapped[float] = mapped_column(Float, nullable=False)
     exit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
-    entry_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    exit_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    entry_time: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    exit_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     pnl: Mapped[float | None] = mapped_column(Float, nullable=True)
     pnl_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -61,13 +60,13 @@ class Trade(Base):
     status: Mapped[TradeStatus] = mapped_column(SAEnum(TradeStatus), default=TradeStatus.closed)
     rating: Mapped[TradeRating | None] = mapped_column(SAEnum(TradeRating), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    tags_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    running_pnl_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    tags_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    running_pnl_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
-    strategy_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("playbooks.id", ondelete="SET NULL"), nullable=True)
+    strategy_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("playbooks.id", ondelete="SET NULL"), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     user = relationship("User", back_populates="trades")
     account = relationship("Account", back_populates="trades")
@@ -80,9 +79,9 @@ class Trade(Base):
 class TradeTag(Base):
     __tablename__ = "trade_tags"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    trade_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("trades.id", ondelete="CASCADE"), nullable=False)
-    tag_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    trade_id: Mapped[str] = mapped_column(String(36), ForeignKey("trades.id", ondelete="CASCADE"), nullable=False)
+    tag_id: Mapped[str] = mapped_column(String(36), ForeignKey("tags.id", ondelete="CASCADE"), nullable=False)
 
     trade = relationship("Trade", back_populates="trade_tags")
     tag = relationship("Tag", back_populates="trade_tags")

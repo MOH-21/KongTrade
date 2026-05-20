@@ -3,8 +3,7 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://kongtrade:kongtrade@localhost:5432/kongtrade"
-    redis_url: str = "redis://localhost:6379/0"
+    database_url: str = "sqlite+aiosqlite:///./kongtrade.db"
     secret_key: str = "dev-secret-key-change-in-production"
     encryption_key: str = "dev-encryption-key-change-in-prod"
     access_token_expire_minutes: int = 30

@@ -13,10 +13,10 @@ KongTrade is a Tradezella clone — a full-stack trading journal and analytics p
 
 ## Stack
 
-- **Backend:** Python 3.12, FastAPI, SQLAlchemy 2.0 (async), PostgreSQL 16, Celery + Redis
-- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Recharts
-- **Infra:** Docker Compose (db, redis, backend, celery, frontend via nginx)
+- **Backend:** Python 3.12, FastAPI, SQLAlchemy 2.0 (async), SQLite (aiosqlite)
+- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, Recharts
 - **Broker:** robin_stocks v3.4.0 (unofficial Robinhood API)
+- **No Docker, no PostgreSQL, no Redis, no Celery** — everything runs in-process
 
 ## Architecture
 
@@ -26,7 +26,6 @@ backend/app/
 ├── services/     # Business logic
 ├── models/       # SQLAlchemy ORM models
 ├── schemas/      # Pydantic request/response schemas
-├── workers/      # Celery tasks (broker sync)
 ├── utils/        # Security, encryption, robinhood client
 ├── main.py       # App entry, router registration
 ├── config.py     # Pydantic Settings from env
@@ -41,30 +40,26 @@ frontend/src/
 └── types/        # TypeScript interfaces
 ```
 
-## Common Commands
+## Commands
 
 ```bash
-# Full stack
-docker compose up -d
+# Start everything
+./start.sh
 
-# Dev backend (hot reload)
+# Backend only (hot reload)
 cd backend && source venv/bin/activate && uvicorn app.main:app --reload
 
-# Dev frontend (hot reload, proxies /api to :8000)
+# Frontend only (hot reload, proxies /api to :8000)
 cd frontend && npm run dev
 
-# Type check frontend
+# Type check
 cd frontend && npx tsc --noEmit
-
-# Alembic migrations
-cd backend && source venv/bin/activate && alembic revision --autogenerate -m "description"
-cd backend && source venv/bin/activate && alembic upgrade head
 ```
 
 ## Key Design Decisions
 
-- **Python/FastAPI over Rails** because robin_stocks is Python-only
-- **PostgreSQL JSONB** for flexible trade metadata (tags, running P&L, criteria)
-- **Celery** for async Robinhood trade sync (I/O heavy, needs retry)
-- **Docker Compose full-stack** so anyone can `docker compose up` with zero deps
+- **SQLite over PostgreSQL** — zero-config, no server process, good enough for single-user
+- **No Celery** — broker sync runs in-process (takes ~5 seconds, acceptable UX)
+- **Portable UUIDs** — `String(36)` instead of PostgreSQL-native UUID
+- **Generic JSON** — `sqlalchemy.JSON` instead of PostgreSQL JSONB
 - **Zella Score** = weighted composite: Win Rate (30%) + Profit Factor (25%) + Consistency (20%) + Risk Mgmt (15%) + Trade Quality (10%)
