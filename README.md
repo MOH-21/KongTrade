@@ -9,13 +9,12 @@ Track every trade, replay your sessions, score your performance, and find your e
 ```bash
 git clone https://github.com/MOH-21/KongTrade.git
 cd KongTrade
-cp .env.example .env
-docker compose up -d
+./setup.sh
 ```
 
 Open **http://localhost:3000**
 
-That's it. No Python, Node, or PostgreSQL required — everything runs in Docker.
+`setup.sh` installs Docker if needed, configures permissions, generates secrets, and launches everything. No Python, Node, or PostgreSQL required — one command, done.
 
 ## Features
 
