@@ -8,9 +8,13 @@ class Settings(BaseSettings):
     encryption_key: str = "dev-encryption-key-change-in-prod"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 @lru_cache
