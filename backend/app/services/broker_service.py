@@ -37,12 +37,10 @@ class BrokerService:
                 return {"mfa_required": True, "connection_id": connection_id}
             except Exception as e:
                 raise ConnectionError(str(e))
-            pickle_data = client.get_session_pickle()
-            conn.pickle_data = pickle_data
             conn.is_connected = True
             await self.db.commit()
             await self.db.refresh(conn)
-            acc = await self._sync_account(user_id, conn.id, client)
+            await self._sync_account(user_id, conn.id, client)
             client.logout()
             return {"connected": True, "connection": BrokerConnectionResponse.model_validate(conn)}
 
@@ -81,13 +79,11 @@ class BrokerService:
         except Exception as e:
             raise ConnectionError(str(e))
 
-        pickle_data = client.get_session_pickle()
-        conn.pickle_data = pickle_data
         conn.is_connected = True
         await self.db.commit()
         await self.db.refresh(conn)
 
-        acc = await self._sync_account(user_id, conn.id, client)
+        await self._sync_account(user_id, conn.id, client)
         client.logout()
         return {"connected": True, "connection": BrokerConnectionResponse.model_validate(conn)}
 
@@ -171,17 +167,12 @@ class BrokerService:
             client.login(
                 username=conn.username,
                 password=decrypt_value(conn.encrypted_password),
-                pickle_data=conn.pickle_data,
             )
         except Exception as e:
             raise ConnectionError(f"Robinhood auth failed: {str(e)}")
 
         try:
             trades_data = client.get_all_trades()
-            new_pickle = client.get_session_pickle()
-            if new_pickle:
-                conn.pickle_data = new_pickle
-
             new_count = 0
             for td in trades_data:
                 if td.broker_order_id:
