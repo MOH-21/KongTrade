@@ -53,35 +53,22 @@ class RobinhoodClient:
     def __init__(self):
         self._authenticated = False
 
-    def login(self, username: str, password: str, mfa_code: str | None = None, pickle_data: str | None = None) -> bool:
+    def login(self, username: str, password: str, mfa_code: str | None = None) -> bool:
         """Authenticate with Robinhood. Raises MfaRequired if a code is needed."""
         try:
-            if pickle_data:
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".pickle", delete=False) as f:
-                    f.write(pickle_data)
-                    pickle_path = f.name
-                try:
-                    r.load_pickle(pickle_path)
-                    self._authenticated = True
-                    return True
-                except Exception:
-                    os.unlink(pickle_path)
-
             r.login(
                 username=username,
                 password=password,
                 expiresIn=86400,
-                by_sms=True,
                 mfa_code=mfa_code,
-                store_session=False,
             )
             self._authenticated = True
             return True
         except Exception as e:
             self._authenticated = False
             msg = str(e).lower()
-            if "mfa" in msg or "challenge" in msg or "verification" in msg or "two-factor" in msg or "2fa" in msg or "code" in msg:
-                raise MfaRequired("Robinhood requires an MFA code. Check your email or authenticator app.")
+            if any(word in msg for word in ("mfa", "challenge", "verification", "two-factor", "2fa", "code", "device")):
+                raise MfaRequired("Robinhood requires a verification code. Check your email or authenticator app.")
             raise ConnectionError(f"Robinhood login failed: {str(e)}")
 
     def get_session_pickle(self) -> str | None:

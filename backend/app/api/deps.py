@@ -1,5 +1,5 @@
 from fastapi import Depends
-from app.config import LOCAL_USER_ID
+import app.config
 
 
 class LocalUser:
@@ -10,4 +10,4 @@ class LocalUser:
 
 
 def get_local_user() -> LocalUser:
-    return LocalUser(LOCAL_USER_ID)
+    return LocalUser(app.config.LOCAL_USER_ID)
