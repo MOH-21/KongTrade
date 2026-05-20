@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.schemas.auth import UserResponse
-from app.api.deps import require_user
+from app.api.deps import get_local_user
 from app.services.report_service import ReportService
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -12,7 +11,7 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 async def pnl_over_time(
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = ReportService(db)
@@ -21,7 +20,7 @@ async def pnl_over_time(
 
 @router.get("/by-symbol")
 async def by_symbol(
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = ReportService(db)
@@ -30,7 +29,7 @@ async def by_symbol(
 
 @router.get("/by-tag")
 async def by_tag(
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = ReportService(db)
@@ -39,7 +38,7 @@ async def by_tag(
 
 @router.get("/by-time")
 async def by_time(
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = ReportService(db)
@@ -48,7 +47,7 @@ async def by_time(
 
 @router.get("/performance")
 async def performance(
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = ReportService(db)

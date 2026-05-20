@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -6,10 +7,10 @@ import {
   BarChart3,
   Library,
   Settings,
-  LogOut,
   TrendingUp,
+  Moon,
+  Sun,
 } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -21,8 +22,17 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar() {
-  const { user, logout } = useAuth();
   const location = useLocation();
+  const [isDark, setIsDark] = useState(() =>
+    document.documentElement.classList.contains("dark")
+  );
+
+  const toggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("theme", next ? "dark" : "light");
+  };
 
   return (
     <aside className="flex w-60 flex-col border-r bg-card">
@@ -67,20 +77,13 @@ export default function Sidebar() {
           Settings
         </NavLink>
         <button
-          onClick={logout}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          onClick={toggleTheme}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
         >
-          <LogOut className="h-4 w-4" />
-          Logout
+          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          {isDark ? "Light Mode" : "Dark Mode"}
         </button>
       </div>
-
-      {user && (
-        <div className="border-t px-4 py-3">
-          <p className="text-xs font-medium truncate">{user.display_name}</p>
-          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-        </div>
-      )}
     </aside>
   );
 }

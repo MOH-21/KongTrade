@@ -1,8 +1,5 @@
-import { Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./hooks/useAuth";
+import { Routes, Route } from "react-router-dom";
 import AppShell from "./components/layout/AppShell";
-import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import TradesPage from "./pages/TradesPage";
 import TradeDetailPage from "./pages/TradeDetailPage";
@@ -15,42 +12,23 @@ import PlaybookBuilderPage from "./pages/PlaybookBuilderPage";
 import SettingsPage from "./pages/SettingsPage";
 import BrokerSettingsPage from "./pages/BrokerSettingsPage";
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
-  }
-  if (!user) return <Navigate to="/login" />;
-  return <>{children}</>;
-}
-
-function AppRoutes() {
-  const { user } = useAuth();
-
-  return (
-    <Routes>
-      <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <LoginPage />} />
-      <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <RegisterPage />} />
-      <Route
-        path="/*"
-        element={
-          <ProtectedRoute>
-            <AppShell />
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
-  );
-}
-
 export default function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <AppShell>
+      <Routes>
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/trades" element={<TradesPage />} />
+        <Route path="/trades/:id" element={<TradeDetailPage />} />
+        <Route path="/journal" element={<JournalPage />} />
+        <Route path="/journal/:date" element={<JournalEntryPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/playbooks" element={<PlaybooksPage />} />
+        <Route path="/playbooks/:id" element={<PlaybookDetailPage />} />
+        <Route path="/playbooks/:id/builder" element={<PlaybookBuilderPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/brokers" element={<BrokerSettingsPage />} />
+        <Route path="*" element={<DashboardPage />} />
+      </Routes>
+    </AppShell>
   );
 }

@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.schemas.auth import UserResponse
 from app.schemas.playbook import PlaybookCreateRequest, PlaybookUpdateRequest, PlaybookResponse
-from app.api.deps import require_user
+from app.api.deps import get_local_user
 from app.services.playbook_service import PlaybookService
 
 router = APIRouter(prefix="/api/playbooks", tags=["playbooks"])
@@ -11,7 +10,7 @@ router = APIRouter(prefix="/api/playbooks", tags=["playbooks"])
 
 @router.get("", response_model=list[PlaybookResponse])
 async def list_playbooks(
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = PlaybookService(db)
@@ -29,7 +28,7 @@ async def get_templates(
 @router.get("/{playbook_id}", response_model=PlaybookResponse)
 async def get_playbook(
     playbook_id: str,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = PlaybookService(db)
@@ -42,7 +41,7 @@ async def get_playbook(
 @router.post("", response_model=PlaybookResponse, status_code=201)
 async def create_playbook(
     request: PlaybookCreateRequest,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = PlaybookService(db)
@@ -53,7 +52,7 @@ async def create_playbook(
 async def update_playbook(
     playbook_id: str,
     request: PlaybookUpdateRequest,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = PlaybookService(db)
@@ -66,7 +65,7 @@ async def update_playbook(
 @router.delete("/{playbook_id}")
 async def delete_playbook(
     playbook_id: str,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = PlaybookService(db)

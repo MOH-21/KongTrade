@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.schemas.auth import UserResponse
 from app.schemas.broker import BrokerConnectRequest, BrokerConnectionResponse, BrokerStatusResponse
-from app.api.deps import require_user
+from app.api.deps import get_local_user
 from app.services.broker_service import BrokerService
 
 router = APIRouter(prefix="/api/brokers", tags=["brokers"])
@@ -12,7 +11,7 @@ router = APIRouter(prefix="/api/brokers", tags=["brokers"])
 @router.post("/connect", response_model=BrokerConnectionResponse)
 async def connect_broker(
     request: BrokerConnectRequest,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = BrokerService(db)
@@ -32,7 +31,7 @@ async def connect_broker(
 
 @router.get("/status", response_model=BrokerStatusResponse)
 async def broker_status(
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = BrokerService(db)
@@ -41,7 +40,7 @@ async def broker_status(
 
 @router.post("/sync")
 async def sync_trades(
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = BrokerService(db)
@@ -69,7 +68,7 @@ async def sync_trades(
 @router.delete("/disconnect")
 async def disconnect_broker(
     broker_name: str = "robinhood",
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = BrokerService(db)

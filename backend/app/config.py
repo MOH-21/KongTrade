@@ -20,3 +20,7 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+# Auto-created local user ID, set on app startup
+LOCAL_USER_ID: str | None = None

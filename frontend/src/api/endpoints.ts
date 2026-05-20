@@ -1,6 +1,5 @@
 import apiClient from "./client";
 import type {
-  AuthResponse, LoginRequest, RegisterRequest, User,
   BrokerConnectRequest, BrokerConnection, BrokerStatusResponse,
   Trade, TradeCreateRequest, TradeUpdateRequest, TradeListParams, PaginatedResponse,
   DashboardSummary, CalendarDay, ZellaScore, StreakData, DrawdownData,
@@ -9,15 +8,6 @@ import type {
   Playbook, PlaybookCreateRequest,
   PnLTimeSeries, SymbolPerformance, TagPerformance, TimePerformance, PerformanceMetrics,
 } from "@/types";
-
-// ---- Auth ----
-export const authApi = {
-  login: (data: LoginRequest) => apiClient.post<AuthResponse>("/auth/login", data).then(r => r.data),
-  register: (data: RegisterRequest) => apiClient.post<AuthResponse>("/auth/register", data).then(r => r.data),
-  refresh: (refresh_token: string) => apiClient.post("/auth/refresh", { refresh_token }).then(r => r.data),
-  logout: () => apiClient.post("/auth/logout"),
-  me: () => apiClient.get<User>("/auth/me").then(r => r.data),
-};
 
 // ---- Brokers ----
 export const brokersApi = {

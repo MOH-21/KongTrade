@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.schemas.auth import UserResponse
 from app.schemas.trade import TradeCreateRequest, TradeUpdateRequest, TradeResponse, PaginatedTradeResponse
-from app.api.deps import require_user
+from app.api.deps import get_local_user
 from app.services.trade_service import TradeService
 
 router = APIRouter(prefix="/api/trades", tags=["trades"])
@@ -23,7 +22,7 @@ async def list_trades(
     end_date: str | None = Query(None),
     sort_by: str = Query("entry_time"),
     sort_order: str = Query("desc"),
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = TradeService(db)
@@ -47,7 +46,7 @@ async def list_trades(
 @router.get("/{trade_id}", response_model=TradeResponse)
 async def get_trade(
     trade_id: str,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = TradeService(db)
@@ -60,7 +59,7 @@ async def get_trade(
 @router.post("", response_model=TradeResponse, status_code=201)
 async def create_trade(
     request: TradeCreateRequest,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = TradeService(db)
@@ -71,7 +70,7 @@ async def create_trade(
 async def update_trade(
     trade_id: str,
     request: TradeUpdateRequest,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = TradeService(db)
@@ -84,7 +83,7 @@ async def update_trade(
 @router.delete("/{trade_id}")
 async def delete_trade(
     trade_id: str,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = TradeService(db)
@@ -97,7 +96,7 @@ async def delete_trade(
 @router.post("/import-csv")
 async def import_csv(
     file: UploadFile = File(...),
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     if not file.filename or not file.filename.endswith(".csv"):

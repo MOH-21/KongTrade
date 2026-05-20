@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.schemas.auth import UserResponse
-from app.api.deps import require_user
+from app.api.deps import get_local_user
 from app.services.dashboard_service import DashboardService
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -10,7 +9,7 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 @router.get("/summary")
 async def dashboard_summary(
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = DashboardService(db)
@@ -21,7 +20,7 @@ async def dashboard_summary(
 async def dashboard_calendar(
     month: int | None = Query(None, ge=1, le=12),
     year: int | None = Query(None, ge=2000),
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = DashboardService(db)
@@ -30,7 +29,7 @@ async def dashboard_calendar(
 
 @router.get("/zella-score")
 async def zella_score(
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = DashboardService(db)
@@ -39,7 +38,7 @@ async def zella_score(
 
 @router.get("/streaks")
 async def streaks(
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = DashboardService(db)
@@ -48,7 +47,7 @@ async def streaks(
 
 @router.get("/drawdown")
 async def drawdown(
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = DashboardService(db)
@@ -57,7 +56,7 @@ async def drawdown(
 
 @router.get("/recent-trades")
 async def recent_trades(
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = DashboardService(db)

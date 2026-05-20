@@ -25,6 +25,9 @@ frontend/.vite/
 *.swp
 *.swo
 
+# Database
+*.db
+
 # Docker
 pgdata/
 

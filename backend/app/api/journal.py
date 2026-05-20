@@ -2,9 +2,8 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.schemas.auth import UserResponse
 from app.schemas.journal import JournalEntryRequest, JournalEntryResponse
-from app.api.deps import require_user
+from app.api.deps import get_local_user
 from app.services.journal_service import JournalService
 
 router = APIRouter(prefix="/api/journal", tags=["journal"])
@@ -13,7 +12,7 @@ router = APIRouter(prefix="/api/journal", tags=["journal"])
 @router.get("/{entry_date}", response_model=JournalEntryResponse)
 async def get_journal_entry(
     entry_date: date,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = JournalService(db)
@@ -27,7 +26,7 @@ async def get_journal_entry(
 async def upsert_journal_entry(
     entry_date: date,
     request: JournalEntryRequest,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = JournalService(db)
@@ -38,7 +37,7 @@ async def upsert_journal_entry(
 async def journal_heatmap(
     year: int | None = Query(None),
     month: int | None = Query(None),
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = JournalService(db)

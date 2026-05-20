@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.schemas.auth import UserResponse
 from app.schemas.journal import TagCreateRequest, TagResponse
-from app.api.deps import require_user
+from app.api.deps import get_local_user
 from app.services.journal_service import JournalService
 
 router = APIRouter(prefix="/api/tags", tags=["tags"])
@@ -11,7 +10,7 @@ router = APIRouter(prefix="/api/tags", tags=["tags"])
 
 @router.get("", response_model=list[TagResponse])
 async def list_tags(
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = JournalService(db)
@@ -21,7 +20,7 @@ async def list_tags(
 @router.post("", response_model=TagResponse, status_code=201)
 async def create_tag(
     request: TagCreateRequest,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = JournalService(db)
@@ -32,7 +31,7 @@ async def create_tag(
 async def update_tag(
     tag_id: str,
     request: TagCreateRequest,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = JournalService(db)
@@ -45,7 +44,7 @@ async def update_tag(
 @router.delete("/{tag_id}")
 async def delete_tag(
     tag_id: str,
-    user: UserResponse = Depends(require_user),
+    user = Depends(get_local_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = JournalService(db)

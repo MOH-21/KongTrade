@@ -1,10 +1,13 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
 from app.config import get_settings
-from app.database import engine, Base
+from app.database import engine, Base, async_session
+from app.models.user import User
+from app.utils.security import hash_password
+import app.config as app_config
 
-from app.api.auth import router as auth_router
 from app.api.brokers import router as brokers_router
 from app.api.trades import router as trades_router
 from app.api.dashboard import router as dashboard_router
@@ -20,6 +23,19 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    async with async_session() as db:
+        result = await db.execute(select(User).limit(1))
+        user = result.scalar_one_or_none()
+        if not user:
+            user = User(
+                email="local@kongtrade",
+                password_hash=hash_password("local"),
+                display_name="Trader",
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+        app_config.LOCAL_USER_ID = user.id
     yield
 
 
@@ -38,7 +54,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for router in [auth_router, brokers_router, trades_router, dashboard_router, journal_router, tags_router, reports_router, playbooks_router]:
+for router in [brokers_router, trades_router, dashboard_router, journal_router, tags_router, reports_router, playbooks_router]:
     app.include_router(router)
 
 
